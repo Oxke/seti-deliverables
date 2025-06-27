@@ -2,8 +2,8 @@
 I found out that h5 works better than fil generally, so I started exporting in
 that format instead.
 
-Files with the long name ending in `.dat` are seticore's outputs, while files
-`turboSETI.[adj].dat` are turboSETI outputs. 
+Files `seticore.[adj.]log` are seticore's outputs, while files
+`turboSETI.[adj.]log` are turboSETI outputs. 
 
 the adjective in `[adj]` describes how I modified the signal:
 - **clean** means I didn't at all, that's the output from the original file
