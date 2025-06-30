@@ -1,0 +1,10 @@
+# -------------------------- o --------------------------
+# File ID: seticore.mighty.dat 
+# -------------------------- o --------------------------
+# Source:TIC286923464_ON
+# MJD: 60703.195115740738	RA: 13.567323	DEC: 53.728575
+# DELTAT:  18.253611	DELTAF(Hz):   2.793968	max_drift_rate:   6.000000	obs_length: 292.057776
+# --------------------------
+# Top_Hit_# 	Drift_Rate 	SNR 	Uncorrected_Frequency 	Corrected_Frequency 	Index 	freq_start 	freq_end 	SEFD 	SEFD_freq 	Coarse_Channel_Number 	Full_number_of_hits 	
+# --------------------------
+1	  5.020494	449.194000	  18392.809555	  18392.809555	746930	  18392.809555	  18392.809555	0.0	0.000000	40	1	
