@@ -1,0 +1,4 @@
+mfi = np.float64(773.0)
+dr = np.float64(-5.0)
+snr = np.float64(4.0088063288984644e-10)
+window = 50673266 - 50674290
