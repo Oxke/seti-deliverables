@@ -13,6 +13,7 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument("--nproc", "-N", default=7, help="Number of synchronous processes", type=int)
 parser.add_argument("--input", "-i", default="../random-data/", help="Input folder", nargs="+")
+parser.add_argument("--filter", "-x", default="k2-18b*/*K2-18b*0.fil", help="Input file format mask")
 parser.add_argument("--output", "-o", default="../k218b/", help="Output folder")
 parser.add_argument("-dr", default=[-5, 5, 200], help="Drift rates, 1 is drift rate, 2 is range, 200 points, 3 is range and number of points, so `-dr -5 5 200` is 200 drift rates from -5 to 5", nargs="+", type=float)
 parser.add_argument("--log10_snr", "-snr", default=[1, 3, 200], help="Like drift rates, 1 to 3 arguments, but it's the log10 of the drift rate", nargs="+", type=float)
@@ -49,7 +50,7 @@ seticore_env = os.environ.copy()
 seticore_env["HDF5_PLUGIN_PATH"] = "/home/obs/.conda/envs/seticore/lib/python3.12/site-packages/hdf5plugin/plugins"
 
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-all_files = glob.glob(os.path.join(DATA_FOLDER, "k2-18b*/*K2-18b*0.fil"))
+all_files = glob.glob(os.path.join(DATA_FOLDER, args.filter))
 
 # --- Define processing function for one file ---
 def process_file(filepath):
@@ -90,7 +91,7 @@ def process_file(filepath):
 def already_processed(filepath):
     base_name = os.path.basename(filepath).replace(".fil", "")
     inject_signal_theory = os.path.join(OUTPUT_FOLDER,
-                                        f"{base_name}.clean.h5")
+                                        f"{base_name}.expected.txt")
     return os.path.exists(inject_signal_theory)
 
 if __name__ == "__main__":
