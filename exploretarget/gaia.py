@@ -1,6 +1,8 @@
-import numpy as np
 import astroquery.gaia as Gaia
+import numpy as np
 from astropy.coordinates import SkyCoord
+from astropy.time import Time
+
 
 def query(query: str, *args, **kwargs):
     """
@@ -18,6 +20,7 @@ def query(query: str, *args, **kwargs):
 
     return results, job
 
+
 def circles(list_coords: list[SkyCoord], radius: float, *args, **kwargs):
     """
     Queries the gaia catalog for all the targets in a circle of center `coords`
@@ -33,8 +36,7 @@ def circles(list_coords: list[SkyCoord], radius: float, *args, **kwargs):
         job (astroquery.utils.tap.model.job.Job): job instance
     """
     if isinstance(radius, float): radius = [radius] * len(list_coords)
-    assert len(list_coords) == len(radius), "list_coords and radiuses have \
-        different dimentions"
+    assert len(list_coords) == len(radius), "list_coords and radiuses have different dimensions"
 
     centers = []
     for coords in list_coords:
@@ -44,18 +46,9 @@ def circles(list_coords: list[SkyCoord], radius: float, *args, **kwargs):
         centers.append((coords_icrs.ra.deg, coords_icrs.dec.deg))
 
     where_clause = " OR ".join([
-            f"CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {ra}, {dec},
-            {radius})) = 1"
-                for ra, dec in centers
-                    ])
-
-    query_str = f"""
-    SELECT *
-    FROM gaiadr3.gaia_source
-    WHERE CONTAINS(
-       POINT('ICRS', ra, dec),
-       CIRCLE('ICRS', {coords_icrs.ra.deg}, {coords_icrs.dec.deg}, {radius})
-    ) = 1
-    """
+        f"CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {ra}, {dec}, {r})) = 1"
+        for (ra, dec), r in zip(centers, radius)
+    ])
+    query_str = "SELECT * FROM gaiadr3.gaia_source WHERE " + where_clause
 
     return query(query_str, *args, **kwargs)
