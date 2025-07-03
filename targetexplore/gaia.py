@@ -1,4 +1,4 @@
-import astroquery.gaia as Gaia
+from astroquery.gaia import Gaia
 import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.time import Time
