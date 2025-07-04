@@ -20,14 +20,19 @@ class Targets:
     ----------
     centers: SkyCoord
     radius: radius of list of radiuses for observations
-    targets: table of targets (after self.query(), otherwise None)
+
+    After self.query() (initialized to None)
+        table: table of targets
+        skycoord: skycoord vector with targets
+        center: vector with nearest center for each target
+        separation: angular separation to nearest target
 
     Methods
     -------
 
     info(additional=""): Prints the person's name and age.
     """
-    def __init__(self, centers: SkyCoord, radius, query=True):
+    def __init__(self, centers: SkyCoord, radius, query=True, L=770):
         """
         Initialize a Targets object
 
@@ -35,6 +40,7 @@ class Targets:
             centers (Skycoord): SkyCoord coordinates of centers to point
             radius: either a single radius or a list, in arcminutes
             query (boolean): if true, immediately queries Gaia for the targets
+            L (kpc, float): prior median distance of stars
         """
 
         self.centers = np.atleast_1d(centers).transform_to('icrs')
@@ -47,6 +53,8 @@ class Targets:
         self._center_tree = cKDTree(self.centers.cartesian.xyz.value.T)
         self.separation = None
         self.table = None
+
+        self
 
         if query: self.query()
 
