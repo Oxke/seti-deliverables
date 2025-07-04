@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.stats import multivariate_normal
 
+
 def calculate_density(colors, magnitudes, color_err, mag_err):
     x_min, x_max = colors.min(), colors.max()
     y_min, y_max = magnitudes.min(), magnitudes.max()
@@ -10,8 +11,7 @@ def calculate_density(colors, magnitudes, color_err, mag_err):
     pos = np.dstack((X, Y))
     density = np.zeros_like(X)
 
-    for cx, cy, sx, sy in zip(colors,
-        magnitudes, color_err, mag_err):
+    for cx, cy, sx, sy in zip(colors, magnitudes, color_err, mag_err):
         if not (np.isfinite(cx) and np.isfinite(cy) and sx > 0 and sy > 0):
             continue
         cov = [[sx**2, 0], [0, sy**2]]

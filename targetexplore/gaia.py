@@ -35,20 +35,25 @@ def circles(list_coords: list[SkyCoord], radius: float, *args, **kwargs):
         results (astropy.table.table.Table): job results
         job (astroquery.utils.tap.model.job.Job): job instance
     """
-    if isinstance(radius, float): radius = [radius] * len(list_coords)
-    assert len(list_coords) == len(radius), "list_coords and radiuses have different dimensions"
+    if isinstance(radius, float):
+        radius = [radius] * len(list_coords)
+    assert len(list_coords) == len(
+        radius
+    ), "list_coords and radiuses have different dimensions"
 
     centers = []
     for coords in list_coords:
-        coords_icrs = coords.transform_to('icrs')
+        coords_icrs = coords.transform_to("icrs")
         coords_icrs.location = None  # makes sure it's barycentric
-        coords_icrs.obstime = Time('J2016.0')
+        coords_icrs.obstime = Time("J2016.0")
         centers.append((coords_icrs.ra.deg, coords_icrs.dec.deg))
 
-    where_clause = " OR ".join([
-        f"CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {ra}, {dec}, {r})) = 1"
-        for (ra, dec), r in zip(centers, radius)
-    ])
+    where_clause = " OR ".join(
+        [
+            f"CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {ra}, {dec}, {r})) = 1"
+            for (ra, dec), r in zip(centers, radius)
+        ]
+    )
     query_str = "SELECT * FROM gaiadr3.gaia_source WHERE " + where_clause
 
     return query(query_str, *args, **kwargs)

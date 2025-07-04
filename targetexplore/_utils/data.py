@@ -1,7 +1,3 @@
-TELESCOPE_BAND = {
-    "MeerKAT_5b": (8.3, 15.4)
-}
+TELESCOPE_BAND = {"MeerKAT_5b": (8.3, 15.4)}
 
-DISC_DIAMETER = {
-    "MeerKAT": 13.5
-}
+DISC_DIAMETER = {"MeerKAT": 13.5}

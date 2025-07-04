@@ -34,8 +34,20 @@ class Targets:
 
     info(additional=""): Prints the person's name and age.
     """
-    def __init__(self, centers: SkyCoord, radius, query=True, L=1.35,
-                 r_max=10000, dr=0.01, *args, **kwargs):
+
+    def __init__(
+        self,
+        centers: SkyCoord,
+        radius=0,
+        telescope=None,
+        band=None,
+        query=True,
+        L=1.35,
+        r_max=10000,
+        dr=0.01,
+        *args,
+        **kwargs,
+    ):
         """
         Initialize a Targets object
 
@@ -46,11 +58,22 @@ class Targets:
             L (kpc, float): prior median distance of stars
         """
 
-        self.centers = np.atleast_1d(centers).transform_to('icrs')
+        self.centers = np.atleast_1d(centers).transform_to("icrs")
         self.centers.location = None  # makes sure it's barycentric
-        self.centers.obstime = Time('J2016.0')
+        self.centers.obstime = Time("J2016.0")
 
-        self.center = None # for each point, the nearest center
+        self.center = None  # for each point, the nearest center
+        self._max_radius = None  # used for the actual visualizations
+        if radius == 0 and telescope is not None and band is not None:
+            assert (
+                f"{telescope}_{band}" in TB
+            ), "band not known, please set the radius"
+            disc_diameter = D[telescope]
+            self._max_radius = freq_to_angle(
+                TB[f"{telescope}_{band}"][1], disc_diameter
+            )
+            radius = np.ceil(self._max_radius)
+        assert radius > 0, "either set radius os telescope and band"
         self.radius = np.array(radius)
         self.L = L
         self._r_max = r_max
@@ -58,26 +81,44 @@ class Targets:
 
         self._center_tree = cKDTree(self.centers.cartesian.xyz.value.T)
         self.separation = None
-        self.table = None
+        self._table = None
         self._posterior_dist = self._naive_dist = None
 
-        if query: self.query(*args, **kwargs)
+        self.telescope = telescope
+        self.band = band
+
+        if query:
+            self.query(*args, **kwargs)
+
+    @property
+    def table(self):
+        if self._max_radius is None or self.separation is None:
+            return self._table
+        return self._table[self.separation.value < self._max_radius]
+
+    @table.setter
+    def table(self, new_table):
+        self._table = new_table
 
     def query(self, calculate_separations=True, *args, **kwargs):
         """
         set calculate_separations to False to only query, without updating the
         self.separation variable
         """
-        self.table, job = circles(self.centers, self.radius / 60,
-                                    *args, **kwargs) # degrees
+        self.table, job = circles(
+            self.centers, self.radius / 60, *args, **kwargs
+        )  # degrees
         if calculate_separations:
             self.separation, self.center = self._calculate_separations()
         return job
 
     @property
     def skycoord(self):
-        if self.table is None: return None
-        return SkyCoord(ra=self.table['ra'], dec=self.table['dec'], frame='icrs')
+        if self.table is None:
+            return None
+        return SkyCoord(
+            ra=self.table["ra"], dec=self.table["dec"], frame="icrs"
+        )
 
     def _calculate_separations(self):
         assert self.table is not None, "run self.query() first"
@@ -86,81 +127,140 @@ class Targets:
         ang_sep = 2 * np.arcsin(dists / 2) * u.rad
         return ang_sep.to(u.arcmin), self.centers[idxs]
 
-    def hist_separation(self,
-                        highlight=None, # if set to true, needs telescope and
-                                        # band, otherwise can be set to (lo, hi)
-                                        # in arcmin
-                        disc_diameter=None, # if set, shows second axis with frequency
-                        telescope=None,
-                        band=None,
-                        title=None,
-                        savefig_name=None,
-                        *args, **kwargs): # passed to bar plot
+    def hist_separation(
+        self,
+        highlight=None,  # if set to true, needs telescope and
+        # band, otherwise can be set to (lo, hi)
+        # in arcmin
+        disc_diameter=None,  # if set, shows second axis with frequency
+        telescope=None,
+        band=None,
+        title=None,
+        savefig_name=None,
+        *args,
+        **kwargs,
+    ):  # passed to bar plot
 
-        assert self.separation is not None, "run self._calculate_separations() first"
-        lo, hi = np.inf, -np.inf # not highlighting anything
-        if highlight is True:
-            assert f"{telescope}_{band}" in TB, "band not known, please \
+        assert (
+            self.separation is not None
+        ), "run self._calculate_separations() first"
+        lo, hi = np.inf, -np.inf  # not highlighting anything
+        if telescope is None:
+            telescope = self.telescope
+        if band is None:
+            band = self.band
+        if highlight is True or (
+            highlight is None and telescope is not None and band is not None
+        ):
+            assert (
+                f"{telescope}_{band}" in TB
+            ), "band not known, please \
                 explicit it by setting highlight=(low arcmin, high arcmin)"
             disc_diameter = D[telescope]
             hi, lo = vfreq_to_angle(TB[f"{telescope}_{band}"], disc_diameter)
-            lo, hi = lo/2, hi/2
-        elif highlight: lo, hi = highlight
+            lo, hi = lo / 2, hi / 2
+        elif highlight:
+            lo, hi = highlight
         counts, bin_edges = np.histogram(self.separation, bins=100)
 
         for i in range(1, len(counts)):
-            counts[i] += counts[i-1]
+            counts[i] += counts[i - 1]
             bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
-        colors = ['crimson' if lo <= c.value <= hi else '#007847' for c in bin_centers]
+        colors = [
+            "crimson" if lo <= c.value <= hi else "#007847" for c in bin_centers
+        ]
 
         plt.figure(figsize=(8, 5))
         plt.bar(
-            bin_centers*2,
+            bin_centers * 2,
             counts,
-            width=2*np.diff(bin_edges),
+            width=2 * np.diff(bin_edges),
             color=colors,
-            align='center',
-            *args, **kwargs
+            align="center",
+            *args,
+            **kwargs,
         )
         plt.xlabel("Field of view (arcminutes)")
         plt.ylabel("Number of Gaia DR3 targets")
-        if title: plt.title(title)
+        if title:
+            plt.title(title)
         plt.gca().invert_xaxis()
 
         if disc_diameter:
             secax = plt.gca().secondary_xaxis(
-                'top',
+                "top",
                 functions=(
                     lambda f: freq_to_angle(f, disc_diameter),
-                    lambda t: angle_to_freq(t, disc_diameter)
-                )
+                    lambda t: angle_to_freq(t, disc_diameter),
+                ),
             )
             secax.set_xlabel("Frequency observed (GHz)")
 
-            (flo, fhi), d = TB[f'{telescope}_{band}'], D[telescope]
-            m1 = (2*freq_to_angle(flo, d) + freq_to_angle(fhi, d))/3
-            m2 = (freq_to_angle(flo, d) + 2*freq_to_angle(fhi, d))/3
-            secax.set_xticks([flo, angle_to_freq(m1, d), angle_to_freq(m2, d),
-                              fhi, 1.5*fhi, 3*fhi, 1000])
+            (flo, fhi), d = TB[f"{telescope}_{band}"], D[telescope]
+            m1 = (2 * freq_to_angle(flo, d) + freq_to_angle(fhi, d)) / 3
+            m2 = (freq_to_angle(flo, d) + 2 * freq_to_angle(fhi, d)) / 3
+            secax.set_xticks(
+                [
+                    angle_to_freq(self.radius * 2, d),
+                    flo,
+                    angle_to_freq(m1, d),
+                    angle_to_freq(m2, d),
+                    fhi,
+                    1.5 * fhi,
+                    3 * fhi,
+                    1000,
+                ]
+            )
 
         plt.tight_layout()
-        if savefig_name: plt.savefig(savefig_name)
+        if savefig_name:
+            plt.savefig(savefig_name)
         plt.show()
 
-    def hist_parallax(self, ax=None):
+    def hist_parallax(self, ax=None, markers=True, *args, **kwargs):
         assert self.table is not None, "run self.query() first"
-        plx = self.table["parallax"]/1000
-        plx_err = self.table["parallax_error"]/1000
-        if ax is None: ax = plt.gca()
-        ax.hist(plx, bins=50, histtype="step")
-        ax.plot(plx, 0*plx, '|', color='k', markersize=10)
+        plx = self.table["parallax"] / 1000
+        plx_err = self.table["parallax_error"] / 1000
+        if ax is None:
+            ax = plt.gca()
+        ax.hist(plx, bins=50, histtype="step", *args, **kwargs)
+        if markers:
+            ax.plot(plx, 0 * plx, "|", color="k", markersize=10)
+        ax.set_xlabel("parallax")
+        ax.set_ylabel("number of targets")
+        return ax
+
+    def hist_distance(
+        self,
+        naive=False,
+        ax=None,
+        markers=True,
+        bins=70,
+        histtype="step",
+        mask_parallax=False,
+        *args,
+        **kwargs,
+    ):  # default plots bayes distances
+        assert self.table is not None, "run self.query() first"
+        if ax is None:
+            ax = plt.gca()
+        dists = self.naive_dist[0] if naive else self.posterior_dist[0]
+        if mask_parallax:
+            mask = (self.table["parallax"] > 0) & ~np.isnan(dists)
+            dists = dists[mask]
+        ax.hist(dists, bins=bins, histtype=histtype, *args, **kwargs)
+        if markers:
+            ax.plot(dists, 0 * dists, "|", color="k", markersize=10)
+        ax.set_xlabel("distance (pc)")
+        ax.set_ylabel("number of targets")
         return ax
 
     @property
     def posterior_dist(self):
-        if self._posterior_dist: return self._posterior_dist
-        plx = self.table["parallax"]/1000
-        plx_err = self.table["parallax_error"]/1000
+        if self._posterior_dist:
+            return self._posterior_dist
+        plx = self.table["parallax"] / 1000
+        plx_err = self.table["parallax_error"] / 1000
         self._posterior_dist = posterior_distance(
             plx, plx_err, self.L, self._r_max, self._dr
         )
@@ -168,15 +268,18 @@ class Targets:
 
     @property
     def naive_dist(self):
-        if self._naive_dist: return self._naive_dist
-        plx = self.table["parallax"]/1000
-        plx_err = self.table["parallax_error"]/1000
+        if self._naive_dist:
+            return self._naive_dist
+        plx = self.table["parallax"] / 1000
+        plx_err = self.table["parallax_error"] / 1000
         self._naive_dist = naive_distance(plx, plx_err)
         return self.naive_dist
 
     @property
     def M_naive(self):
-        return self.table["phot_g_mean_mag"] - 5 * np.log10(self.naive_dist[0]) + 5
+        return (
+            self.table["phot_g_mean_mag"] - 5 * np.log10(self.naive_dist[0]) + 5
+        )
 
     @property
     def M_naive_err(self):
@@ -185,65 +288,127 @@ class Targets:
 
     @property
     def M_bayes(self):
-        return self.table["phot_g_mean_mag"] - 5 * np.log10(self.posterior_dist[0]) + 5
+        return (
+            self.table["phot_g_mean_mag"]
+            - 5 * np.log10(self.posterior_dist[0])
+            + 5
+        )
 
     @property
     def M_bayes_err(self):
-        return (5 / (np.log(10) * self.posterior_dist[0])) * self.posterior_dist[1]
+        return (
+            5 / (np.log(10) * self.posterior_dist[0])
+        ) * self.posterior_dist[1]
 
     def _hr_scatter(self, naive, bayes, ax, mask_parallax=False):
-        color = self.table['phot_bp_mean_mag'] - self.table['phot_rp_mean_mag']
+        color = self.table["phot_bp_mean_mag"] - self.table["phot_rp_mean_mag"]
 
         M_naive, M_bayes = self.M_naive, self.M_bayes
         if mask_parallax:
-            mask = (self.table['parallax'] > 0) & ~np.isnan(color) & ~np.isnan(M_bayes) & ~np.isnan(M_naive)
+            mask = (
+                (self.table["parallax"] > 0)
+                & ~np.isnan(color)
+                & ~np.isnan(M_bayes)
+                & ~np.isnan(M_naive)
+            )
             color = color[mask]
-            M_naive = M_naive[mask]; M_bayes = M_bayes[mask]
+            M_naive = M_naive[mask]
+            M_bayes = M_bayes[mask]
 
-        if naive: ax.scatter(color, M_naive, s=1, alpha = .4)
-        if bayes: ax.scatter(color, M_bayes, s=1, alpha = .4)
+        if naive:
+            ax.scatter(
+                color, M_naive, s=1, alpha=0.4, label="naive distance estimate"
+            )
+        if bayes:
+            ax.scatter(
+                color,
+                M_bayes,
+                s=1,
+                alpha=0.4,
+                label="bayesian distance estimate",
+            )
         ax.invert_yaxis()
-        ax.set_xlabel('BP − RP')
-        ax.set_ylabel('Absolute G magnitude (M_G)')
-        ax.set_title('Hertzsprung–Russell Diagram')
+        ax.set_xlabel("BP − RP")
+        ax.set_ylabel("Absolute G magnitude (M_G)")
+        ax.set_title("Hertzsprung–Russell Diagram")
+        ax.legend()
         return ax
 
-    def _hr_heatmap(self, naive, bayes, fig, ax):
-        color = self.table['phot_bp_mean_mag'] - self.table['phot_rp_mean_mag']
-        axl, axr = ax
-        X_b, Y_b, density_bayes = calculate_density(
-            color, self.M_bayes, color/100, self.M_bayes_err
-        )
-        X_n, Y_n, density_naive = calculate_density(
-            color, self.M_naive, color/100, self.M_naive_err
-        )
-        naive = axl.contourf(X_n, Y_n, density_naive, levels=100, cmap="inferno")
-        axl.set_xlabel("BP - RP")
-        axl.set_ylabel("Absolute G magnitude")
-        axl.set_title("HR using naive distance")
-        axl.invert_yaxis()
-        fig.colorbar(naive)
+    def _hr_heatmap(self, naive, bayes, fig, ax, mask_parallax):
+        color = self.table["phot_bp_mean_mag"] - self.table["phot_rp_mean_mag"]
+        if naive and bayes:
+            axl, axr = ax
+        elif naive:
+            axl = ax
+        elif bayes:
+            axr = ax
 
-        bayes = axr.contourf(X_b, Y_b, density_bayes, levels=100, cmap="inferno")
-        axr.set_xlabel("BP - RP")
-        axr.set_title("HR using bayesian calculated distance")
-        axr.invert_yaxis()
-        fig.colorbar(bayes)
+        M_naive, M_naive_err, M_bayes, M_bayes_err = (
+            self.M_naive,
+            self.M_naive_err,
+            self.M_bayes,
+            self.M_bayes_err,
+        )
+        if mask_parallax:
+            mask = (
+                (self.table["parallax"] > 0)
+                & ~np.isnan(color)
+                & ~np.isnan(M_bayes)
+                & ~np.isnan(M_naive)
+            )
+            color = color[mask]
+            M_naive = M_naive[mask]
+            M_naive_err = M_naive_err[mask]
+            M_bayes = M_bayes[mask]
+            M_bayes_err = M_bayes_err[mask]
+
+        if naive:
+            X_n, Y_n, density_naive = calculate_density(
+                color, M_naive, color / 100, M_naive_err
+            )
+            naive = axl.contourf(
+                X_n, Y_n, density_naive, levels=100, cmap="inferno"
+            )
+            axl.set_xlabel("BP - RP")
+            axl.set_ylabel("Absolute G magnitude")
+            axl.set_title("HR using naive distance")
+            axl.invert_yaxis()
+            fig.colorbar(naive)
+
+        if bayes:
+            X_b, Y_b, density_bayes = calculate_density(
+                color, M_bayes, color / 100, M_bayes_err
+            )
+            bayes = axr.contourf(
+                X_b, Y_b, density_bayes, levels=100, cmap="inferno"
+            )
+            axr.set_xlabel("BP - RP")
+            axr.set_title("HR using bayesian calculated distance")
+            axr.invert_yaxis()
+            fig.colorbar(bayes)
 
         fig.tight_layout()
         return fig, ax
 
-    def hr(self,
-           naive=True, bayes=True,
-           heatmap=True,
-           ax1 = None,
-           fig2 = None, axs2 = None,
-           mask_parallax = False):
+    def hr(
+        self,
+        naive=True,
+        bayes=True,
+        heatmap=True,
+        ax1=None,
+        fig2=None,
+        axs2=None,
+        mask_parallax=False,
+    ):
         assert self.table is not None, "run self.query() first"
-        if ax1 is None: _, ax1 = plt.subplots()
+        if ax1 is None:
+            _, ax1 = plt.subplots()
         ax1 = self._hr_scatter(naive, bayes, ax1, mask_parallax)
         if heatmap and (fig2 is None or axs2 is None):
-            fig2, axs2 = plt.subplots(1, 2, figsize=(14, 6))
+            n = naive + bayes
+            fig2, axs2 = plt.subplots(1, n, figsize=(7 * n, 6))
         if heatmap:
-            fig2, axs2 = self._hr_heatmap(naive, bayes, fig2, axs2)
+            fig2, axs2 = self._hr_heatmap(
+                naive, bayes, fig2, axs2, mask_parallax
+            )
         return ax1, fig2, axs2
