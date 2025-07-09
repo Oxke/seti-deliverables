@@ -1,0 +1,18 @@
+
+turbo_seti version 2.3.2
+blimpy version 2.1.4
+h5py version 3.8.0
+hdf5plugin version 4.1.1
+HDF5 library version 1.12.2
+
+
+HDF5 header info: {'DIMENSION_LABELS': array(['time', 'feed_id', 'frequency'], dtype=object), 'az_start': 0.0, 'data_type': 1, 'fch1': 15380.0, 'foff': -8.940696716308932e-07, 'ibeam': -1, 'machine_id': 20, 'nbeams': 1, 'nbits': 32, 'nchans': 16777216, 'nifs': 1, 'rawdatafile': 'Synthetic', 'source_name': 'Synthetic', 'src_dej': <Angle -28.3831 deg>, 'src_raj': <Angle 17.7875 hourangle>, 'telescope_id': 6, 'tsamp': 18.75, 'tstart': 60865.589345153414, 'za_start': 0.0}
+
+Starting ET search with parameters: datafile=meerKAT_high.h5, max_drift=10.0, min_drift=1e-05, snr=25.0, out_dir=./, coarse_chans=, flagging=False, n_coarse_chan=16, kernels=None, gpu_id=0, gpu_backend=True, blank_dc=True, precision=1, append_output=False, log_level_int=20, obs_info={'pulsar': 0, 'pulsar_found': 0, 'pulsar_dm': 0.0, 'pulsar_snr': 0.0, 'pulsar_stats': array([0., 0., 0., 0., 0., 0.]), 'RFI_level': 0.0, 'Mean_SEFD': 0.0, 'psrflux_Sens': 0.0, 'SEFDs_val': [0.0], 'SEFDs_freq': [0.0], 'SEFDs_freq_up': [0.0]}
+
+Computed drift rate resolution: 0.003178914388020953
+
+Top hit found! SNR 100.227150, Drift Rate 1.503626, index 699303
+
+===== Search time: 0.35 minutes
+===== END OF LOG
