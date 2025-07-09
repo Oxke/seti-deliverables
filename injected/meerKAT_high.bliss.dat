@@ -1,0 +1,10 @@
+# -------------------------- o --------------------------
+# File ID: meerKAT_high.h5
+# -------------------------- o --------------------------
+# Source:Synthetic
+# MJD: 60865.48138703977	RA: 17h47m15.000ss	DEC:-28d22m59.16s
+# DELTAT: 18.750000	DELTAF(Hz):  -0.894070 max_drift_rate: 2.9977162	obs_length: 300.000000
+# --------------------------
+# Top_Hit_#	Drift_Rate	SNR	Uncorrected_Frequency	Corrected_Frequency	Index	freq_start	freq_end	SEFD_freq	Coarse_Channel_Number	Full_number_of_hits
+# --------------------------
+000001	2.934138	11.740388	15380.000424	15380.000424	15	15379.999984	15380.000864	0.000000	0.000000	0	11
