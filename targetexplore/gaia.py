@@ -4,7 +4,7 @@ from astropy.coordinates import SkyCoord
 from astropy.time import Time
 
 
-def query(query: str, *args, **kwargs):
+def query(query: str, quality_cut=True, *args, **kwargs):
     """
     Queries the gaia catalog, essentially just launches the job, catches the
     results and returns them
@@ -15,6 +15,8 @@ def query(query: str, *args, **kwargs):
         results (astropy.table.table.Table): job results
         job (astroquery.utils.tap.model.job.Job): job instance
     """
+    if quality_cut:
+        pass
     job = Gaia.launch_job_async(query, *args, **kwargs)
     results = job.get_results()
 
