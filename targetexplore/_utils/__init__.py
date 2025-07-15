@@ -4,7 +4,7 @@ from scipy.stats import multivariate_normal
 
 def calculate_density(colors, magnitudes, color_err, mag_err):
     x_min, x_max = colors.min(), colors.max()
-    y_min, y_max = magnitudes.min(), magnitudes.max()
+    y_min, y_max = 1, 10
     x = np.linspace(x_min, x_max, 300)
     y = np.linspace(y_max, y_min, 300)
     X, Y = np.meshgrid(x, y)

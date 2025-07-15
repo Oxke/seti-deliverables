@@ -29,7 +29,7 @@ def clip_voronoi(vor, radius=None):
 
     center = vor.points.mean(axis=0)
     if radius is None:
-        radius = vor.points.ptp().max()*2
+        radius = vor.points.ptp().max() * 2
 
     # Map from ridge points to ridge vertices
     all_ridges = {}
@@ -68,7 +68,7 @@ def clip_voronoi(vor, radius=None):
         # Sort region counterclockwise
         vs = np.asarray([new_vertices[v] for v in new_region])
         c = vs.mean(axis=0)
-        angles = np.arctan2(vs[:,1] - c[1], vs[:,0] - c[0])
+        angles = np.arctan2(vs[:, 1] - c[1], vs[:, 0] - c[0])
         new_region = np.array(new_region)[np.argsort(angles)]
 
         new_regions.append(new_region.tolist())

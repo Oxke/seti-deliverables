@@ -156,7 +156,7 @@ def dr_snr(signals):
     plt.tight_layout()
 
 
-def dr_width(signals):
+def dr_width(signals, xscale="linear", yscale="linear"):
     # Extract relevant columns
     dr = signals[:, 1]
     width = signals[:, 3]
@@ -181,6 +181,9 @@ def dr_width(signals):
     plt.figure(figsize=(10, 6))
     X, Y = np.meshgrid(dr_bins, width_bins)
     pcm = plt.pcolormesh(X, Y, detection_rate.T, cmap="viridis", shading="auto")
+
+    plt.xscale(xscale)
+    plt.yscale(yscale)
 
     plt.xlabel("dr")
     plt.ylabel("width")

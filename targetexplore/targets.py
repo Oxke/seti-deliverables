@@ -2,13 +2,13 @@ import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from astropy.time import Time
-from targetexplore.gaia import circles
+from .gaia import circles
 from scipy.spatial import cKDTree
-from targetexplore._utils.data import TELESCOPE_BAND as TB
-from targetexplore._utils.data import DISC_DIAMETER as D
-from targetexplore._utils.conversion import *
-from targetexplore._utils.distance import *
-from targetexplore._utils import calculate_density
+from ._utils.data import TELESCOPE_BAND as TB
+from ._utils.data import DISC_DIAMETER as D
+from ._utils.conversion import *
+from ._utils.distance import *
+from ._utils import calculate_density
 from matplotlib import pyplot as plt
 
 
@@ -65,9 +65,7 @@ class Targets:
         self.center = None  # for each point, the nearest center
         self._max_radius = None  # used for the actual visualizations
         if radius == 0 and telescope is not None and band is not None:
-            assert (
-                f"{telescope}_{band}" in TB
-            ), "band not known, please set the radius"
+            assert f"{telescope}_{band}" in TB, "band not known, please set the radius"
             disc_diameter = D[telescope]
             self._max_radius = freq_to_angle(
                 TB[f"{telescope}_{band}"][1], disc_diameter
@@ -116,9 +114,7 @@ class Targets:
     def skycoord(self):
         if self.table is None:
             return None
-        return SkyCoord(
-            ra=self.table["ra"], dec=self.table["dec"], frame="icrs"
-        )
+        return SkyCoord(ra=self.table["ra"], dec=self.table["dec"], frame="icrs")
 
     def _calculate_separations(self):
         assert self.table is not None, "run self.query() first"
@@ -141,9 +137,7 @@ class Targets:
         **kwargs,
     ):  # passed to bar plot
 
-        assert (
-            self.separation is not None
-        ), "run self._calculate_separations() first"
+        assert self.separation is not None, "run self._calculate_separations() first"
         lo, hi = np.inf, -np.inf  # not highlighting anything
         if telescope is None:
             telescope = self.telescope
@@ -166,9 +160,7 @@ class Targets:
         for i in range(1, len(counts)):
             counts[i] += counts[i - 1]
             bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
-        colors = [
-            "crimson" if lo <= c.value <= hi else "#007847" for c in bin_centers
-        ]
+        colors = ["crimson" if lo <= c.value <= hi else "#007847" for c in bin_centers]
 
         plt.figure(figsize=(8, 5))
         plt.bar(
@@ -232,28 +224,54 @@ class Targets:
 
     def hist_distance(
         self,
-        naive=False,
+        method="gaia",
         ax=None,
         markers=True,
-        bins=70,
+        bins=1 / 30,
         histtype="step",
         mask_parallax=False,
         *args,
         **kwargs,
-    ):  # default plots bayes distances
+    ):  # default plots gaia distances
+        """
+        the `bins` attribute specifies both how the bins are made (binning by equal area
+        or equal width) and how many bins.
+        setting a fraction 1/n makes bins that group every n items in the same bin.
+        setting an integer n makes n bins of equal width
+        """
         assert self.table is not None, "run self.query() first"
         if ax is None:
             ax = plt.gca()
-        dists = self.naive_dist[0] if naive else self.posterior_dist[0]
+        dists = None
+        if method == "gaia":
+            dists = self.gaia_dist[0]
+        elif method == "naive":
+            dists = self.naive_dist[0]
+        elif method == "bayes":
+            dists = self.posterior_dist[0]
+        assert dists is not None, "method must be in ['gaia', 'naive', 'bayes']"
         if mask_parallax:
             mask = (self.table["parallax"] > 0) & ~np.isnan(dists)
             dists = dists[mask]
-        ax.hist(dists, bins=bins, histtype=histtype, *args, **kwargs)
+        if isinstance(bins, float):
+            assert (
+                1 / bins % 1 == 0
+            ), "if floating point, `bins` must be of the form 1/n"
+            q = int(1 / bins)
+            bins = np.quantile(dists, np.linspace(0, 1, q + 1))
+        ax.hist(dists, bins=bins, density=True, histtype=histtype, *args, **kwargs)
         if markers:
             ax.plot(dists, 0 * dists, "|", color="k", markersize=10)
         ax.set_xlabel("distance (pc)")
         ax.set_ylabel("number of targets")
         return ax
+
+    @property
+    def gaia_dist(self):
+        err = (
+            self.table["distance_gspphot_upper"] - self.table["distance_gspphot_lower"]
+        ) / 2
+        return np.array(self.table["distance_gspphot"]), np.array(err)
 
     @property
     def posterior_dist(self):
@@ -277,9 +295,7 @@ class Targets:
 
     @property
     def M_naive(self):
-        return (
-            self.table["phot_g_mean_mag"] - 5 * np.log10(self.naive_dist[0]) + 5
-        )
+        return self.table["phot_g_mean_mag"] - 5 * np.log10(self.naive_dist[0]) + 5
 
     @property
     def M_naive_err(self):
@@ -288,44 +304,63 @@ class Targets:
 
     @property
     def M_bayes(self):
-        return (
-            self.table["phot_g_mean_mag"]
-            - 5 * np.log10(self.posterior_dist[0])
-            + 5
-        )
+        return self.table["phot_g_mean_mag"] - 5 * np.log10(self.posterior_dist[0]) + 5
 
     @property
     def M_bayes_err(self):
-        return (
-            5 / (np.log(10) * self.posterior_dist[0])
-        ) * self.posterior_dist[1]
+        return (5 / (np.log(10) * self.posterior_dist[0])) * self.posterior_dist[1]
 
-    def _hr_scatter(self, naive, bayes, ax, mask_parallax=False):
-        color = self.table["phot_bp_mean_mag"] - self.table["phot_rp_mean_mag"]
+    @property
+    def M_gaia(self):
+        return self.table["abs_g_mag"]
 
-        M_naive, M_bayes = self.M_naive, self.M_bayes
+    @property
+    def M_gaia_err(self):
+        return self.table["abs_g_mag_error"]
+
+    def __len__(self):
+        return len(self.table)
+
+    def _hr_scatter(self, naive, bayes, gaia, ax, mask_parallax=False):
+        color = self.table["bp_rp"]
+
+        M_naive, M_bayes, M_gaia = self.M_naive, self.M_bayes, self.M_gaia
         if mask_parallax:
             mask = (
                 (self.table["parallax"] > 0)
                 & ~np.isnan(color)
                 & ~np.isnan(M_bayes)
                 & ~np.isnan(M_naive)
+                & ~np.isnan(M_gaia)
             )
             color = color[mask]
             M_naive = M_naive[mask]
             M_bayes = M_bayes[mask]
+            M_gaia = M_gaia[mask]
 
         if naive:
             ax.scatter(
-                color, M_naive, s=1, alpha=0.4, label="naive distance estimate"
+                color,
+                M_naive,
+                s=max(1000 / len(self), 5),
+                alpha=0.4,
+                label="naive distance estimate",
             )
         if bayes:
             ax.scatter(
                 color,
                 M_bayes,
-                s=1,
+                s=max(1000 / len(self), 5),
                 alpha=0.4,
                 label="bayesian distance estimate",
+            )
+        if gaia:
+            ax.scatter(
+                color,
+                M_gaia,
+                s=max(1000 / len(self), 5),
+                alpha=0.4,
+                label="distance as computed in gaia catalog",
             )
         ax.invert_yaxis()
         ax.set_xlabel("BP − RP")
@@ -334,8 +369,28 @@ class Targets:
         ax.legend()
         return ax
 
-    def _hr_heatmap(self, naive, bayes, fig, ax, mask_parallax):
-        color = self.table["phot_bp_mean_mag"] - self.table["phot_rp_mean_mag"]
+    def _hr_heatmap_gaia(self, fig, ax, mask_parallax, cmap):
+        color = self.table["bp_rp"]
+        color_err = self.table["bp_rp_error"]
+        M, Merr = self.M_gaia, self.M_gaia_err
+        if mask_parallax:
+            mask = (self.table["parallax"] > 0) & ~np.isnan(color) & ~np.isnan(M)
+            color = color[mask]
+            color_err = color_err[mask]
+            M = M[mask]
+            Merr = Merr[mask]
+        X, Y, density = calculate_density(color, M, color_err, Merr)
+        gaia_hr = ax.contourf(X, Y, density, levels=100, cmap=cmap)
+        ax.set_xlabel("BP - RP")
+        ax.set_ylabel("Absolute G magnitude")
+        ax.set_title("HR using distance as computed in GAIA catalog")
+        ax.invert_yaxis()
+        fig.colorbar(gaia_hr)
+
+        return fig, ax
+
+    def _hr_heatmap(self, naive, bayes, fig, ax, mask_parallax, cmap):
+        color = self.table["bp_rp"]
         if naive and bayes:
             axl, axr = ax
         elif naive:
@@ -366,9 +421,7 @@ class Targets:
             X_n, Y_n, density_naive = calculate_density(
                 color, M_naive, color / 100, M_naive_err
             )
-            naive = axl.contourf(
-                X_n, Y_n, density_naive, levels=100, cmap="inferno"
-            )
+            naive = axl.contourf(X_n, Y_n, density_naive, levels=100, cmap=cmap)
             axl.set_xlabel("BP - RP")
             axl.set_ylabel("Absolute G magnitude")
             axl.set_title("HR using naive distance")
@@ -379,9 +432,7 @@ class Targets:
             X_b, Y_b, density_bayes = calculate_density(
                 color, M_bayes, color / 100, M_bayes_err
             )
-            bayes = axr.contourf(
-                X_b, Y_b, density_bayes, levels=100, cmap="inferno"
-            )
+            bayes = axr.contourf(X_b, Y_b, density_bayes, levels=100, cmap=cmap)
             axr.set_xlabel("BP - RP")
             axr.set_title("HR using bayesian calculated distance")
             axr.invert_yaxis()
@@ -392,23 +443,29 @@ class Targets:
 
     def hr(
         self,
+        gaia=True,
         naive=True,
         bayes=True,
         heatmap=True,
         ax1=None,
         fig2=None,
         axs2=None,
+        fig3=None,
+        ax3=None,
         mask_parallax=False,
+        cmap="inferno",
     ):
         assert self.table is not None, "run self.query() first"
         if ax1 is None:
             _, ax1 = plt.subplots()
-        ax1 = self._hr_scatter(naive, bayes, ax1, mask_parallax)
+        ax1 = self._hr_scatter(naive, bayes, gaia, ax1, mask_parallax)
         if heatmap and (fig2 is None or axs2 is None):
             n = naive + bayes
             fig2, axs2 = plt.subplots(1, n, figsize=(7 * n, 6))
         if heatmap:
-            fig2, axs2 = self._hr_heatmap(
-                naive, bayes, fig2, axs2, mask_parallax
-            )
+            fig2, axs2 = self._hr_heatmap(naive, bayes, fig2, axs2, mask_parallax, cmap)
+        if gaia:
+            if fig3 is None or ax3 is None:
+                fig3, ax3 = plt.subplots(1, 1, figsize=(7, 6))
+            fig3 = self._hr_heatmap_gaia(fig3, ax3, mask_parallax, cmap)
         return ax1, fig2, axs2

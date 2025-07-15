@@ -7,21 +7,26 @@ from copy import deepcopy as dc
 from os import path
 
 OUTPUT_FOLDER = "../../deliverables/injected/"
-WINDOW_SIZE = 1024 # size in freq bins of injected signal
+WINDOW_SIZE = 1024  # size in freq bins of injected signal
 
-def make_frame_s(frame, min_freq_index, dr, snr, l, r, imgsave_path=None, output_folder=OUTPUT_FOLDER):
-    frame_s = frame.get_slice(l,r)
+
+def make_frame_s(
+    frame, min_freq_index, dr, snr, l, r, imgsave_path=None, output_folder=OUTPUT_FOLDER
+):
+    frame_s = frame.get_slice(l, r)
     signal = frame_s.add_signal(
-        stg.constant_path(f_start=frame_s.get_frequency(index=min_freq_index),
-                          drift_rate=dr),
+        stg.constant_path(
+            f_start=frame_s.get_frequency(index=min_freq_index), drift_rate=dr
+        ),
         stg.constant_t_profile(level=frame.get_intensity(snr=snr)),
-        stg.gaussian_f_profile(width=100*u.Hz),
-        stg.constant_bp_profile(level=1)
+        stg.gaussian_f_profile(width=100 * u.Hz),
+        stg.constant_bp_profile(level=1),
     )
     if imgsave_path:
         frame_s.plot()
         plt.savefig(imgsave_path)
     return frame_s
+
 
 def inject_signal(fil_filepath, output_folder=OUTPUT_FOLDER, **kwargs):
     frame = stg.Frame(waterfall=fil_filepath)
@@ -33,9 +38,9 @@ def inject_signal(fil_filepath, output_folder=OUTPUT_FOLDER, **kwargs):
 
     if "snr" in kwargs:
         if kwargs["snr"] is None:
-            SNR = 10 ** np.linspace(kwargs["min_snr"],
-                                    kwargs["max_snr"],
-                                    kwargs["n_snr"])
+            SNR = 10 ** np.linspace(
+                kwargs["min_snr"], kwargs["max_snr"], kwargs["n_snr"]
+            )
             snr = np.random.choice(SNR)
         else:
             snr = kwargs["snr"]
@@ -47,14 +52,17 @@ def inject_signal(fil_filepath, output_folder=OUTPUT_FOLDER, **kwargs):
     # it's a bit different since I have to calculate mfi
 
     DR = np.linspace(-5, 5, 100)
-    MFI = (WINDOW_SIZE*frame.df - frame.data.shape[0]*frame.dt*DR) / (2 * frame.df)
+    MFI = (WINDOW_SIZE * frame.df - frame.data.shape[0] * frame.dt * DR) / (
+        2 * frame.df
+    )
     index_dr = np.random.randint(DR.size)
-    mfi = np.round(MFI[index_dr]) ; dr = DR[index_dr]
+    mfi = np.round(MFI[index_dr])
+    dr = DR[index_dr]
 
     r = l + WINDOW_SIZE
 
     if "output_name" in kwargs:
-        if (output_name:=kwargs["output_name"]).endswith(".h5"):
+        if (output_name := kwargs["output_name"]).endswith(".h5"):
             output_name = output_name[:-3]
     else:
         output_name = path.splitext(path.basename(fil_filepath))[0]
@@ -62,11 +70,16 @@ def inject_signal(fil_filepath, output_folder=OUTPUT_FOLDER, **kwargs):
     frame.save_h5(cleanpath := output_folder + output_name + ".clean.h5")
 
     image_path = output_folder + output_name + ".signal.png"
-    frame.data[:, l:r] = make_frame_s(frame, mfi, dr, snr, l, r, imgsave_path=image_path, output_folder=output_folder).data
+    frame.data[:, l:r] = make_frame_s(
+        frame, mfi, dr, snr, l, r, imgsave_path=image_path, output_folder=output_folder
+    ).data
     frame.save_h5(modpath := output_folder + output_name + ".mod.h5")
 
     return cleanpath, modpath, f"{mfi = }\n{dr = }\n{snr = }\nwindow = {l} - {r}"
 
+
 if __name__ == "__main__":
-    filepath = "../../random-data/guppi_60703_16858_008036_TIC286923464_ON_0001.0000.fil"
+    filepath = (
+        "../../random-data/guppi_60703_16858_008036_TIC286923464_ON_0001.0000.fil"
+    )
     print(inject_signal(filepath))

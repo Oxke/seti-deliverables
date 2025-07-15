@@ -4,16 +4,12 @@ from scipy.integrate import simpson
 from scipy.stats import norm
 
 
-def posterior_distance(
-    parallax, parallax_error, L=1.35, r_max=10000.0, dr=0.01
-):
+def posterior_distance(parallax, parallax_error, L=1.35, r_max=10000.0, dr=0.01):
     """Computes the posterior distance PDF for a given parallax using Bailer-Jones method."""
     r = np.arange(dr, r_max, dr)
 
     var = parallax_error**2
-    likelihood = norm.pdf(
-        parallax, loc=1 / r, scale=parallax_error
-    )  # p( parallax | r)
+    likelihood = norm.pdf(parallax, loc=1 / r, scale=parallax_error)  # p( parallax | r)
     prior = r**2 * np.exp(-r / L)
     posterior = likelihood * prior
     norm_posterior = posterior / simpson(posterior, r)
