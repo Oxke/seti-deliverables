@@ -95,7 +95,8 @@ def circles(
             for (ra, dec), r in zip(centers, radius)
         ]
     )
-    if quality_cut is False and not force_quality_cut: quality_cut = "1=1"
+    if quality_cut is False and not force_quality_cut:
+        quality_cut = "1=1"
     if quality_cut and not force_quality_cut:
         query_head = """SELECT
     designation, ra, dec, parallax, parallax_error, phot_bp_mean_mag, phot_g_mean_mag, bp_rp,

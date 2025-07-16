@@ -333,9 +333,12 @@ class Targets:
         mask = np.ones_like(self.table["parallax"].data, dtype=bool)
         if mask_parallax:
             mask = (self.table["parallax"] > 0) & ~np.isnan(self.color)
-            if naive: mask &= ~np.isnan(self.M_naive)
-            if bayes: mask &= ~np.isnan(self.M_bayes)
-            if gaia:  mask &= ~np.isnan(self.M_gaia)
+            if naive:
+                mask &= ~np.isnan(self.M_naive)
+            if bayes:
+                mask &= ~np.isnan(self.M_bayes)
+            if gaia:
+                mask &= ~np.isnan(self.M_gaia)
 
         if naive:
             ax.scatter(
@@ -371,8 +374,15 @@ class Targets:
     def _hr_heatmap_gaia(self, fig, ax, mask_parallax, cmap):
         mask = np.ones_like(self.table["parallax"].data, dtype=bool)
         if mask_parallax:
-            mask = (self.table["parallax"] > 0) & ~np.isnan(self.color) & ~np.isnan(self.M_gaia) & ~np.isnan(self.M_gaia_err)
-        X, Y, density = calculate_density(self.color, self.M_gaia, self.color_err, self.M_gaia_err)
+            mask = (
+                (self.table["parallax"] > 0)
+                & ~np.isnan(self.color)
+                & ~np.isnan(self.M_gaia)
+                & ~np.isnan(self.M_gaia_err)
+            )
+        X, Y, density = calculate_density(
+            self.color, self.M_gaia, self.color_err, self.M_gaia_err
+        )
         gaia_hr = ax.contourf(X, Y, density, levels=100, cmap=cmap)
         ax.set_xlabel("BP - RP")
         ax.set_ylabel("Absolute G magnitude")
@@ -393,12 +403,17 @@ class Targets:
         mask = np.ones_like(self.table["parallax"].data, dtype=bool)
         if mask_parallax:
             mask = (self.table["parallax"] > 0) & ~np.isnan(self.color)
-            if naive: mask &= ~np.isnan(self.M_naive) & ~np.isnan(self.M_naive_err)
-            if bayes: mask &= ~np.isnan(self.M_bayes) & ~np.isnan(self.M_bayes_err)
+            if naive:
+                mask &= ~np.isnan(self.M_naive) & ~np.isnan(self.M_naive_err)
+            if bayes:
+                mask &= ~np.isnan(self.M_bayes) & ~np.isnan(self.M_bayes_err)
 
         if naive:
             X_n, Y_n, density_naive = calculate_density(
-                self.color[mask], self.M_naive[mask], self.color_err[mask], self.M_naive_err[mask]
+                self.color[mask],
+                self.M_naive[mask],
+                self.color_err[mask],
+                self.M_naive_err[mask],
             )
             naive = axl.contourf(X_n, Y_n, density_naive, levels=100, cmap=cmap)
             axl.set_xlabel("BP - RP")
@@ -409,7 +424,10 @@ class Targets:
 
         if bayes:
             X_b, Y_b, density_bayes = calculate_density(
-                self.color[mask], self.M_bayes[mask], self.color_err[mask], self.M_bayes_err[mask]
+                self.color[mask],
+                self.M_bayes[mask],
+                self.color_err[mask],
+                self.M_bayes_err[mask],
             )
             bayes = axr.contourf(X_b, Y_b, density_bayes, levels=100, cmap=cmap)
             axr.set_xlabel("BP - RP")

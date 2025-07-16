@@ -153,6 +153,7 @@ def _make_and_save_random(
     ] = None,
     width: Optional[Union[u.Quantity, Sequence[u.Quantity]]] = None,
     evenly_spaced: bool = False,
+    adjust_snr: bool = False,
     **kwargs,
 ) -> None:
     """
@@ -216,6 +217,9 @@ def _make_and_save_random(
         width = width * np.ones(signal_per_file)
     else:
         width = W_lo + rng.random(signal_per_file) * (W_hi - W_lo)
+
+    if adjust_snr:
+        snr /= np.sqrt(width.to(u.Hz).value)
 
     df = 1 * u.Hz
     n_samples = 2**22
