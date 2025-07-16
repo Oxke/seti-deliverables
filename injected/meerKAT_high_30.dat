@@ -1,0 +1,10 @@
+# -------------------------- o --------------------------
+# File ID: meerKAT_high_30.dat 
+# -------------------------- o --------------------------
+# Source:Synthetic
+# MJD: 60869.654657421037	RA: 17.787500	DEC: -28.383100
+# DELTAT:  18.750000	DELTAF(Hz):  -1.000000	max_drift_rate:  10.000000	obs_length: 300.000000
+# --------------------------
+# Top_Hit_# 	Drift_Rate 	SNR 	Uncorrected_Frequency 	Corrected_Frequency 	Index 	freq_start 	freq_end 	SEFD 	SEFD_freq 	Coarse_Channel_Number 	Full_number_of_hits 	
+# --------------------------
+1	  1.500444	 28.509844	  15003.999775	  15003.999775	194529	  15003.999775	  15003.999775	0.0	0.000000	12	1	

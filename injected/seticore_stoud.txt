@@ -1,0 +1,5 @@
+welcome to seticore, version 1.0.6
+running in dedoppler mode.
+loading input from meerKAT_high.h5
+dedoppler parameters: max_drift=10.00 min_drift=0.0000 snr=25.00
+writing output to meerkat_high_100.seticore.dat
