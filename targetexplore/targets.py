@@ -103,12 +103,12 @@ class Targets:
         set calculate_separations to False to only query, without updating the
         self.separation variable
         """
-        self.table, job = circles(
+        self.table, self._query_job, self._query = circles(
             self.centers, self.radius / 60, *args, **kwargs
         )  # degrees
         if calculate_separations:
             self.separation, self.center = self._calculate_separations()
-        return job
+        return self._query_job
 
     @property
     def skycoord(self):
@@ -318,46 +318,45 @@ class Targets:
     def M_gaia_err(self):
         return self.table["abs_g_mag_error"]
 
+    @property
+    def color(self):
+        return self.table["bp_rp"]
+
+    @property
+    def color_err(self):
+        return self.table["bp_rp_error"]
+
     def __len__(self):
         return len(self.table)
 
     def _hr_scatter(self, naive, bayes, gaia, ax, mask_parallax=False):
-        color = self.table["bp_rp"]
-
-        M_naive, M_bayes, M_gaia = self.M_naive, self.M_bayes, self.M_gaia
+        mask = np.ones_like(self.table["parallax"].data, dtype=bool)
         if mask_parallax:
-            mask = (
-                (self.table["parallax"] > 0)
-                & ~np.isnan(color)
-                & ~np.isnan(M_bayes)
-                & ~np.isnan(M_naive)
-                & ~np.isnan(M_gaia)
-            )
-            color = color[mask]
-            M_naive = M_naive[mask]
-            M_bayes = M_bayes[mask]
-            M_gaia = M_gaia[mask]
+            mask = (self.table["parallax"] > 0) & ~np.isnan(self.color)
+            if naive: mask &= ~np.isnan(self.M_naive)
+            if bayes: mask &= ~np.isnan(self.M_bayes)
+            if gaia:  mask &= ~np.isnan(self.M_gaia)
 
         if naive:
             ax.scatter(
-                color,
-                M_naive,
+                self.color[mask],
+                self.M_naive[mask],
                 s=max(1000 / len(self), 5),
                 alpha=0.4,
                 label="naive distance estimate",
             )
         if bayes:
             ax.scatter(
-                color,
-                M_bayes,
+                self.color[mask],
+                self.M_bayes[mask],
                 s=max(1000 / len(self), 5),
                 alpha=0.4,
                 label="bayesian distance estimate",
             )
         if gaia:
             ax.scatter(
-                color,
-                M_gaia,
+                self.color[mask],
+                self.M_gaia[mask],
                 s=max(1000 / len(self), 5),
                 alpha=0.4,
                 label="distance as computed in gaia catalog",
@@ -370,16 +369,10 @@ class Targets:
         return ax
 
     def _hr_heatmap_gaia(self, fig, ax, mask_parallax, cmap):
-        color = self.table["bp_rp"]
-        color_err = self.table["bp_rp_error"]
-        M, Merr = self.M_gaia, self.M_gaia_err
+        mask = np.ones_like(self.table["parallax"].data, dtype=bool)
         if mask_parallax:
-            mask = (self.table["parallax"] > 0) & ~np.isnan(color) & ~np.isnan(M)
-            color = color[mask]
-            color_err = color_err[mask]
-            M = M[mask]
-            Merr = Merr[mask]
-        X, Y, density = calculate_density(color, M, color_err, Merr)
+            mask = (self.table["parallax"] > 0) & ~np.isnan(self.color) & ~np.isnan(self.M_gaia) & ~np.isnan(self.M_gaia_err)
+        X, Y, density = calculate_density(self.color, self.M_gaia, self.color_err, self.M_gaia_err)
         gaia_hr = ax.contourf(X, Y, density, levels=100, cmap=cmap)
         ax.set_xlabel("BP - RP")
         ax.set_ylabel("Absolute G magnitude")
@@ -390,7 +383,6 @@ class Targets:
         return fig, ax
 
     def _hr_heatmap(self, naive, bayes, fig, ax, mask_parallax, cmap):
-        color = self.table["bp_rp"]
         if naive and bayes:
             axl, axr = ax
         elif naive:
@@ -398,28 +390,15 @@ class Targets:
         elif bayes:
             axr = ax
 
-        M_naive, M_naive_err, M_bayes, M_bayes_err = (
-            self.M_naive,
-            self.M_naive_err,
-            self.M_bayes,
-            self.M_bayes_err,
-        )
+        mask = np.ones_like(self.table["parallax"].data, dtype=bool)
         if mask_parallax:
-            mask = (
-                (self.table["parallax"] > 0)
-                & ~np.isnan(color)
-                & ~np.isnan(M_bayes)
-                & ~np.isnan(M_naive)
-            )
-            color = color[mask]
-            M_naive = M_naive[mask]
-            M_naive_err = M_naive_err[mask]
-            M_bayes = M_bayes[mask]
-            M_bayes_err = M_bayes_err[mask]
+            mask = (self.table["parallax"] > 0) & ~np.isnan(self.color)
+            if naive: mask &= ~np.isnan(self.M_naive) & ~np.isnan(self.M_naive_err)
+            if bayes: mask &= ~np.isnan(self.M_bayes) & ~np.isnan(self.M_bayes_err)
 
         if naive:
             X_n, Y_n, density_naive = calculate_density(
-                color, M_naive, color / 100, M_naive_err
+                self.color[mask], self.M_naive[mask], self.color_err[mask], self.M_naive_err[mask]
             )
             naive = axl.contourf(X_n, Y_n, density_naive, levels=100, cmap=cmap)
             axl.set_xlabel("BP - RP")
@@ -430,7 +409,7 @@ class Targets:
 
         if bayes:
             X_b, Y_b, density_bayes = calculate_density(
-                color, M_bayes, color / 100, M_bayes_err
+                self.color[mask], self.M_bayes[mask], self.color_err[mask], self.M_bayes_err[mask]
             )
             bayes = axr.contourf(X_b, Y_b, density_bayes, levels=100, cmap=cmap)
             axr.set_xlabel("BP - RP")

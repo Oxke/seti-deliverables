@@ -9,6 +9,31 @@ import multiprocessing
 import setigen_patch as stg
 import astropy.units as u
 
+## LOOK AT THE noise_only_MeerKAT_5b.ipynb notebook for clarifications
+T_rx = lambda nu: 10.6 * u.K + 0.633 * (nu - 8.41 * u.GHz) * (u.K / u.GHz)
+T_sky = lambda nu: 568 * u.K * (nu / u.GHz) ** -1.13  # galactic center
+T_sys = lambda nu: T_rx(nu) + T_sky(nu)
+
+
+def power(nu, frame):
+    k_B = 1.38e-23 * (u.J / u.K)
+    R = 50 * u.Ohm
+    P = k_B * T_sys(nu) * frame.df * u.Hz
+    P = P.to(u.yW)
+    N = (frame.df * u.Hz * frame.dt * u.s).to(u.dimensionless_unscaled)
+    return P, N
+
+
+def add_signal(frame, mean_freq, dr, snr, width):
+    f_start = mean_freq - dr * frame.data.shape[0] * frame.dt * u.s / 2
+    return frame.add_signal(
+        stg.constant_path(f_start=f_start, drift_rate=dr),
+        stg.constant_t_profile(level=frame.get_intensity(snr=snr)),
+        stg.gaussian_f_profile(width=width),
+        stg.constant_bp_profile(level=1),
+    )
+
+
 def make_and_save(
     *args: Tuple[Any, ...],
     signal_per_file: int = 1,
@@ -19,7 +44,7 @@ def make_and_save(
     hi: u.Quantity = 10 * u.GHz,
     signal_info_dir: str = "",
     output_dir: str = "",
-    time_it: bool = False
+    time_it: bool = False,
 ) -> str:
     """
     Create a synthetic data frame with injected signals and save it to an HDF5 file.
@@ -56,7 +81,7 @@ def make_and_save(
         filename = "_".join(f"{arg.value:.4g}" for arg in args) + ".h5"
     else:
         filename = str(hash(str(args))) + ".h5"
-        with open(signal_info_dir + filename + ".npy", 'wb') as f:
+        with open(signal_info_dir + filename + ".npy", "wb") as f:
             np.save(f, args)
 
     print(f"{filename} running on process {multiprocessing.current_process().name}")
@@ -79,7 +104,7 @@ def make_and_save(
         print("Calculating Noise parameters... ", end=" ")
         step = pc()
 
-    P, N = power(np.atleast_1d(args[0]).mean())  # args[0] is mid frequency array
+    P, N = power(np.atleast_1d(args[0]).mean(), frame)  # args[0] is mid frequency array
 
     if time_it:
         print(f"{pc() - step:.3f} s")
@@ -87,9 +112,7 @@ def make_and_save(
         step = pc()
 
     noise = frame.add_noise(
-        k=(N / 2).value,
-        theta=(2 * P / N).value,
-        noise_type='gamma'
+        k=(N / 2).value, theta=(2 * P / N).value, noise_type="gamma"
     )
 
     for i in range(signal_per_file):
@@ -113,20 +136,24 @@ def make_and_save(
 
     return filename
 
+
 M_lo, M_hi = 8.3 * u.GHz, 15.4 * u.GHz
 DR_lo, DR_hi = 0.01 * (u.Hz / u.s), 5 * (u.Hz / u.s)
 logSNR_lo, logSNR_hi = 1, 3
 W_lo, W_hi = 1 * u.Hz, 20 * u.Hz
+
 
 def _make_and_save_random(
     signal_per_file: int = 1,
     seed: Optional[int] = None,
     time_it: bool = False,
     dr: Optional[Union[u.Quantity, Sequence[u.Quantity]]] = None,
-    snr: Optional[Union[float, Sequence[float], u.Quantity, Sequence[u.Quantity]]] = None,
+    snr: Optional[
+        Union[float, Sequence[float], u.Quantity, Sequence[u.Quantity]]
+    ] = None,
     width: Optional[Union[u.Quantity, Sequence[u.Quantity]]] = None,
     evenly_spaced: bool = False,
-    **kwargs
+    **kwargs,
 ) -> None:
     """
     Generate and save a synthetic signal dataset with randomized parameters.
@@ -177,7 +204,10 @@ def _make_and_save_random(
     if snr is not None:
         snr = snr * np.ones(signal_per_file)
     else:
-        snr = 10 ** (logSNR_lo + rng.random(signal_per_file) * (logSNR_hi - logSNR_lo)) * u.dimensionless_unscaled
+        snr = (
+            10 ** (logSNR_lo + rng.random(signal_per_file) * (logSNR_hi - logSNR_lo))
+            * u.dimensionless_unscaled
+        )
 
     if isinstance(width, Iterable):
         assert len(width) == 2, "Only accepted [min, max] as astropy quantities"
@@ -188,27 +218,39 @@ def _make_and_save_random(
         width = W_lo + rng.random(signal_per_file) * (W_hi - W_lo)
 
     df = 1 * u.Hz
-    n_samples = 2 ** 22
+    n_samples = 2**22
     n_ints = 16
     obstime = 300 * u.s
     dt = obstime / n_ints
     f_hi = midf + df * (n_samples >> 1)
 
     if evenly_spaced:
-        midF = np.linspace(midf - 0.495 * n_samples * df, midf + 0.495 * n_samples * df, signal_per_file)
+        midF = np.linspace(
+            midf - 0.495 * n_samples * df,
+            midf + 0.495 * n_samples * df,
+            signal_per_file,
+        )
     else:
         midF = midf + (rng.random(signal_per_file) - 0.5) * n_samples * df
 
     output_filename = make_and_save(
-        midF, dr, snr, width,
+        midF,
+        dr,
+        snr,
+        width,
         signal_per_file=signal_per_file,
         num_samples=n_samples,
         n_ints=n_ints,
-        df=df, dt=dt, hi=f_hi,
+        df=df,
+        dt=dt,
+        hi=f_hi,
         time_it=time_it,
-        **kwargs
+        **kwargs,
     )
-    print(f"Process {multiprocessing.current_process().name} made file {output_filename}")
+    print(
+        f"Process {multiprocessing.current_process().name} made file {output_filename}"
+    )
+
 
 def _worker(counter, lock, max_iterations, kwargs):
     while True:
@@ -219,15 +261,18 @@ def _worker(counter, lock, max_iterations, kwargs):
             current_iteration = counter.value
         _make_and_save_random(**kwargs)
 
+
 def make_and_save_random(num_cpus=10, max_iterations=22_831, **kwargs):
 
     # Shared value and lock for synchronization
-    counter = multiprocessing.Value('i', 0)  # shared integer
+    counter = multiprocessing.Value("i", 0)  # shared integer
     lock = multiprocessing.Lock()
 
     processes = []
     for _ in range(num_cpus):
-        p = multiprocessing.Process(target=worker, args=(counter, lock, max_iterations, kwargs))
+        p = multiprocessing.Process(
+            target=_worker, args=(counter, lock, max_iterations, kwargs)
+        )
         p.start()
         processes.append(p)
 

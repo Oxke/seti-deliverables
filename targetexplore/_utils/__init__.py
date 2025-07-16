@@ -15,7 +15,7 @@ def calculate_density(colors, magnitudes, color_err, mag_err):
         if not (np.isfinite(cx) and np.isfinite(cy) and sx > 0 and sy > 0):
             continue
         cov = [[sx**2, 0], [0, sy**2]]
-        rv = multivariate_normal(mean=[cx, cy], cov=cov)
+        rv = multivariate_normal(mean=[cx, cy], cov=cov, allow_singular=True)
         density += rv.pdf(pos)
 
     return X, Y, density / np.max(density)

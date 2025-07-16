@@ -4,18 +4,32 @@ from astropy.coordinates import SkyCoord
 from astropy.time import Time
 
 
-def query(query: str, quality_cut=True, *args, **kwargs):
+def query(query: str, quality_cut=True, force_quality_cut=False, *args, **kwargs):
     """
     Queries the gaia catalog, essentially just launches the job, catches the
     results and returns them
 
     Parameters:
         query (str): query string to send to gaia
+        quality_cut (str|bool):
+            - False: does not add anything to the query
+            - True: adds the same quality cuts as in Czech's paper
+            - (string): treated as additional query
     Returns:
         results (astropy.table.table.Table): job results
         job (astroquery.utils.tap.model.job.Job): job instance
     """
-    if quality_cut:
+    if isinstance(quality_cut, str):
+        query = f"{query} AND ({quality_cut})"
+        if not force_quality_cut:
+            query += """
+AND distance_gspphot <> 0
+AND phot_bp_mean_flux_over_error <> 0
+AND phot_rp_mean_flux_over_error <> 0
+AND phot_g_mean_flux_over_error <> 0
+AND (distance_gspphot_upper - distance_gspphot_lower) <> 0
+"""
+    if quality_cut is True:
         query += """
 AND distance_gspphot > 0
 AND (distance_gspphot_upper - distance_gspphot_lower) > 0
@@ -32,16 +46,20 @@ AND astrometric_n_good_obs_al > 5
 AND astrometric_chi2_al / (astrometric_n_good_obs_al - 5)
     < 1.44 * GREATEST(1, EXP(-0.4 * (phot_g_mean_mag - 19.5)))
 """
-    job = Gaia.launch_job_async(query, *args, **kwargs)
+    try:
+        job = Gaia.launch_job_async(query, *args, **kwargs)
+    except Exception as e:
+        return None, e, query
     results = job.get_results()
 
-    return results, job
+    return results, job, query
 
 
 def circles(
     list_coords: list[SkyCoord],
     radius: float,
     quality_cut=True,
+    force_quality_cut=False,
     *args,
     **kwargs,
 ):
@@ -77,7 +95,8 @@ def circles(
             for (ra, dec), r in zip(centers, radius)
         ]
     )
-    if quality_cut:
+    if quality_cut is False and not force_quality_cut: quality_cut = "1=1"
+    if quality_cut and not force_quality_cut:
         query_head = """SELECT
     designation, ra, dec, parallax, parallax_error, phot_bp_mean_mag, phot_g_mean_mag, bp_rp,
     distance_gspphot, distance_gspphot_lower, distance_gspphot_upper,
@@ -94,6 +113,6 @@ def circles(
 FROM gaiadr3.gaia_source WHERE """
     else:
         query_head = "SELECT * FROM gaiadr3.gaia_source WHERE "
-    query_str = query_head + where_clause
+    query_str = f"{query_head} ({where_clause})"
 
-    return query(query_str, quality_cut, *args, **kwargs)
+    return query(query_str, quality_cut, force_quality_cut, *args, **kwargs)
