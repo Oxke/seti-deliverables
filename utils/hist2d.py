@@ -156,15 +156,15 @@ def dr_snr(signals):
     plt.tight_layout()
 
 
-def dr_width(signals, xscale="linear", yscale="linear"):
+def dr_width(signals, xscale="linear", yscale="linear", xlim=None, ylim=None):
     # Extract relevant columns
     dr = signals[:, 1]
     width = signals[:, 3]
     detected = signals[:, 4]
 
     # Define bins for dr and width (linear for both)
-    dr_bins = np.linspace(dr.min(), dr.max(), 50)
-    width_bins = np.linspace(width.min(), width.max(), 50)
+    dr_bins = np.linspace(*(xlim if xlim else (dr.min(), dr.max())), 50)
+    width_bins = np.linspace(*(ylim if ylim else (width.min(), width.max())), 50)
 
     # Compute detection sum and count per bin
     det_sum, _, _ = np.histogram2d(

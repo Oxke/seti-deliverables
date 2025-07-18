@@ -47,7 +47,8 @@ def make_and_save(
     time_it: bool = False,
 ) -> str:
     """
-    Create a synthetic data frame with injected signals and save it to an HDF5 file.
+    Create a synthetic data frame with injected signals and save it to an HDF5
+    file.
 
     Parameters:
     -----------
@@ -137,27 +138,31 @@ def make_and_save(
     return filename
 
 
-M_lo, M_hi = 8.3 * u.GHz, 15.4 * u.GHz
-DR_lo, DR_hi = 0.01 * (u.Hz / u.s), 5 * (u.Hz / u.s)
-logSNR_lo, logSNR_hi = 1, 3
-W_lo, W_hi = 1 * u.Hz, 20 * u.Hz
+MIDF = 8.3 * u.GHz, 15.4 * u.GHz  # MeerKAT
+DR = 0.01 * (u.Hz / u.s), 5 * (u.Hz / u.s)
+SNR = 10, 1000
+WIDTH = 1 * u.Hz, 20 * u.Hz
 
 
 def _make_and_save_random(
     signal_per_file: int = 1,
     seed: Optional[int] = None,
     time_it: bool = False,
-    dr: Optional[Union[u.Quantity, Sequence[u.Quantity]]] = None,
+    midf: Optional[Union[u.Quantity, Sequence[u.Quantity]]] = MIDF,
+    dr: Optional[Union[u.Quantity, Sequence[u.Quantity]]] = DR,
     snr: Optional[
         Union[float, Sequence[float], u.Quantity, Sequence[u.Quantity]]
-    ] = None,
-    width: Optional[Union[u.Quantity, Sequence[u.Quantity]]] = None,
+    ] = SNR,
+    width: Optional[Union[u.Quantity, Sequence[u.Quantity]]] = WIDTH,
     evenly_spaced: bool = False,
     adjust_snr: bool = False,
     **kwargs,
 ) -> None:
     """
     Generate and save a synthetic signal dataset with randomized parameters.
+    This is the inner function and should not be called directly. Instead, use
+    the `make_and_save_random` function (and same parameters, in addition to
+    those for i/o and threading)
 
     Parameters:
     -----------
@@ -167,12 +172,19 @@ def _make_and_save_random(
         Seed for the random number generator. Default is None.
     time_it : bool, optional
         Whether to time the generation and saving process. Default is False.
-    dr : Quantity or sequence of Quantity, optional
-        Drift rate(s) to use. If a sequence of length 2 is given, it's interpreted as a range [min, max].
-        If a single quantity is given, it is broadcasted to all signals.
+    midf : quantity or sequence of quantity, optional
+        (middle) frequency to use. if a sequence of length 2 is given, it's interpreted as a range [min, max].
+        if a single quantity is given, it is broadcasted to all signals.
+        default is [8.3 GHz, 15.4 GHz] (MeerKAT band 5b)
+    dr : quantity or sequence of quantity, optional
+        absolute value of drift rate(s) to use. if a sequence of length 2 is given, it's interpreted as a range [min, max].
+        if a single quantity is given, it is broadcasted to all signals.
+        The sign of the drift rate is randomly picked afterwards.
+        default is [0.01, 5]
     snr : float, Quantity, or sequence, optional
         Signal-to-noise ratio(s). If a sequence of length 2 is given, it is interpreted as a range [min, max].
         If a single value is given, it is broadcasted to all signals.
+        default is [10, 1000]
     width : Quantity or sequence of Quantity, optional
         Signal width(s). If a sequence of length 2 is given, it is interpreted as a range [min, max].
         If a single quantity is given, it is broadcasted to all signals.
@@ -188,35 +200,31 @@ def _make_and_save_random(
         The function creates and saves the synthetic signal file(s), and prints the output filename.
     """
     rng = np.random.default_rng(seed=seed)
-    midf = M_lo + rng.random() * (M_hi - M_lo)
+    if isinstance(midf, Sequence):
+        assert len(midf) == 2, "Only accepted [min, max] as astropy quantities"
+        midf = midf[0] + rng.random() * (midf[1] - midf[0])
 
-    if isinstance(dr, Iterable):
+    if isinstance(dr, Sequence):
         assert len(dr) == 2, "Only accepted [min, max] as astropy quantities"
-        (DR_lo, DR_hi), dr = dr, None
-    if dr is not None:
+        dr = dr[0] + rng.random(signal_per_file) * (dr[1] - dr[0])
+    else:
         dr = dr * np.ones(signal_per_file)
-    else:
-        dr = DR_lo + rng.random(signal_per_file) * (DR_hi - DR_lo)
-    dr = np.where(rng.random(signal_per_file) < 0.5, -dr, dr)
 
-    if isinstance(snr, Iterable):
+    if isinstance(snr, Sequence):
         assert len(snr) == 2, "Only accepted [min, max] as astropy quantities"
-        logSNR_lo, logSNR_hi, snr = np.log10(snr[0]), np.log10(snr[1]), None
-    if snr is not None:
-        snr = snr * np.ones(signal_per_file)
-    else:
+        lsnr_lo, lsnr_hi = np.log10(snr[0]), np.log10(snr[1])
         snr = (
-            10 ** (logSNR_lo + rng.random(signal_per_file) * (logSNR_hi - logSNR_lo))
+            10 ** (lsnr_lo + rng.random(signal_per_file) * (lsnr_hi - lsnr_lo))
             * u.dimensionless_unscaled
         )
-
-    if isinstance(width, Iterable):
-        assert len(width) == 2, "Only accepted [min, max] as astropy quantities"
-        (W_lo, W_hi), width = width, None
-    if width is not None:
-        width = width * np.ones(signal_per_file)
     else:
-        width = W_lo + rng.random(signal_per_file) * (W_hi - W_lo)
+        snr = snr * np.ones(signal_per_file)
+
+    if isinstance(width, Sequence):
+        assert len(width) == 2, "Only accepted [min, max] as astropy quantities"
+        width = width[0] + rng.random(signal_per_file) * (width[1] - width[0])
+    else:
+        width = width * np.ones(signal_per_file)
 
     if adjust_snr:
         snr /= np.sqrt(width.to(u.Hz).value)
@@ -226,7 +234,7 @@ def _make_and_save_random(
     n_ints = 16
     obstime = 300 * u.s
     dt = obstime / n_ints
-    f_hi = midf + df * (n_samples >> 1)
+    f_hi = midf + df * (n_samples // 2)
 
     if evenly_spaced:
         midF = np.linspace(
@@ -256,17 +264,46 @@ def _make_and_save_random(
     )
 
 
-def _worker(counter, lock, max_iterations, kwargs):
-    while True:
-        with lock:
-            if counter.value >= max_iterations:
-                break
-            counter.value += 1
-            current_iteration = counter.value
-        _make_and_save_random(**kwargs)
+def make_and_save_random(
+    num_cpus=10, max_iterations=22_831, target=_make_and_save_random, **kwargs
+):
+    """
+    Run a target function in parallel across multiple processes, up to a fixed
+    number of iterations.
 
+    This function spawns `num_cpus` worker processes, each repeatedly invoking
+    the given `target` function until the total number of invocations across all
+    processes reaches `max_iterations`.
 
-def make_and_save_random(num_cpus=10, max_iterations=22_831, **kwargs):
+    A shared counter (protected by a lock) ensures that no more than
+    `max_iterations` total calls to `target` are made, regardless of how many
+    processes are running in parallel.
+
+    Parameters:
+    - num_cpus (int): Number of parallel worker processes to spawn. Default is
+      10.
+    - max_iterations (int): Total number of times to invoke `target` across all
+      processes. Default is 22,831.  target (callable): A function to be
+      executed repeatedly by each worker process. This function must accept all
+      keyword arguments passed via `**kwargs`.
+    - **kwargs: Arbitrary keyword arguments passed to the `target` function on
+      each invocation.
+
+    Notes:
+    - The function `target` is called as `target(**kwargs)` by each worker.
+    - Iteration counting is handled via a shared `multiprocessing.Value` to
+      synchronize across processes.
+    - All processes are joined before the function returns.
+    """
+
+    def _worker(counter, lock, max_iterations, kwargs):
+        while True:
+            with lock:
+                if counter.value >= max_iterations:
+                    break
+                counter.value += 1
+                current_iteration = counter.value
+            target(**kwargs)
 
     # Shared value and lock for synchronization
     counter = multiprocessing.Value("i", 0)  # shared integer
