@@ -3,6 +3,28 @@ import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.time import Time
 
+def _make_query(where_clause, quality_cut, force_quality_cut):
+    if quality_cut is False and not force_quality_cut:
+        quality_cut = "1=1"
+    if quality_cut and not force_quality_cut:
+        query_head = """SELECT
+    designation, ra, dec, parallax, parallax_error, phot_bp_mean_mag, phot_g_mean_mag, bp_rp,
+    distance_gspphot, distance_gspphot_lower, distance_gspphot_upper,
+    SQRT(
+        POWER(1.0857 / phot_bp_mean_flux_over_error, 2) +
+        POWER(1.0857 / phot_rp_mean_flux_over_error, 2)
+    ) AS bp_rp_error,
+    phot_g_mean_mag - 5 * LOG10(distance_gspphot) + 5 AS abs_g_mag,
+    SQRT(
+        POWER(1.0857 / phot_g_mean_flux_over_error, 2) +
+        POWER(5.0 / (2.302585093 * distance_gspphot) *
+        ((distance_gspphot_upper - distance_gspphot_lower) / 2), 2)
+   ) AS abs_g_mag_error
+FROM gaiadr3.gaia_source WHERE """
+    else:
+        query_head = "SELECT * FROM gaiadr3.gaia_source WHERE "
+    query_str = f"{query_head} ({where_clause})"
+    return query_str, quality_cut
 
 def query(query: str, quality_cut=True, force_quality_cut=False, *args, **kwargs):
     """
@@ -55,7 +77,7 @@ AND astrometric_chi2_al / (astrometric_n_good_obs_al - 5)
     return results, job, query
 
 
-def circles(
+def _circles(
     list_coords: list[SkyCoord],
     radius: float,
     quality_cut=True,
@@ -82,12 +104,10 @@ def circles(
         radius
     ), "list_coords and radiuses have different dimensions"
 
-    centers = []
-    for coords in list_coords:
-        coords_icrs = coords.transform_to("icrs")
-        coords_icrs.location = None  # makes sure it's barycentric
-        coords_icrs.obstime = Time("J2016.0")
-        centers.append((coords_icrs.ra.deg, coords_icrs.dec.deg))
+    coords_icrs = list_coords.transform_to("icrs")
+    coords_icrs.location = None  # makes sure it's barycentric
+    coords_icrs.obstime = Time("J2016.0")
+    centers = np.array([list_coords.ra.deg, list_coords.dec.deg]).T
 
     where_clause = " OR ".join(
         [
@@ -95,25 +115,34 @@ def circles(
             for (ra, dec), r in zip(centers, radius)
         ]
     )
-    if quality_cut is False and not force_quality_cut:
-        quality_cut = "1=1"
-    if quality_cut and not force_quality_cut:
-        query_head = """SELECT
-    designation, ra, dec, parallax, parallax_error, phot_bp_mean_mag, phot_g_mean_mag, bp_rp,
-    distance_gspphot, distance_gspphot_lower, distance_gspphot_upper,
-    SQRT(
-        POWER(1.0857 / phot_bp_mean_flux_over_error, 2) +
-        POWER(1.0857 / phot_rp_mean_flux_over_error, 2)
-    ) AS bp_rp_error,
-    phot_g_mean_mag - 5 * LOG10(distance_gspphot) + 5 AS abs_g_mag,
-    SQRT(
-        POWER(1.0857 / phot_g_mean_flux_over_error, 2) +
-        POWER(5.0 / (2.302585093 * distance_gspphot) *
-        ((distance_gspphot_upper - distance_gspphot_lower) / 2), 2)
-   ) AS abs_g_mag_error
-FROM gaiadr3.gaia_source WHERE """
-    else:
-        query_head = "SELECT * FROM gaiadr3.gaia_source WHERE "
-    query_str = f"{query_head} ({where_clause})"
 
-    return query(query_str, quality_cut, force_quality_cut, *args, **kwargs)
+    return query(*_make_query(where_clause, quality_cut, force_quality_cut), force_quality_cut, *args, **kwargs)
+
+def _timed_circles(
+    list_coords: list[SkyCoord],
+    radius: float,
+    quality_cut=True,
+    force_quality_cut=False,
+    *args,
+    **kwargs,
+):
+    coords_icrs = list_coords.transform_to("icrs")
+    coords_icrs.location = None  # makes sure it's barycentric
+    coords_icrs.obstime = Time("J2016.0")
+    centers = np.array([list_coords.ra.deg, list_coords.dec.deg]).T
+
+    res_targets = []
+    positive = ""
+    negative = ""
+    for (ra, dec), r in zip(centers, radius):
+        negative = " or ".join([positive, negative])
+        positive = f"contains(point('ICRS', ra, dec), circle('ICRL', {ra}, {dec}, {r})) = 1"
+        where_clause = f"{positive} and not ({negative})"
+        res_targets.append(query(*_make_query(where_clause, quality_cut, force_quality_cut), force_quality_cut, *args, **kwargs))
+
+    return res_targets
+
+def circles(*args, **kwargs):
+    return _circles(*args, **kwargs)
+    if mode=="one":   return _circles(*args, **kwargs)
+    if mode=="timed": return _timed_circles(*args, **kwargs)

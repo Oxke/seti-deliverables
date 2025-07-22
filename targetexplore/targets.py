@@ -65,7 +65,9 @@ class Targets:
         self.center = None  # for each point, the nearest center
         self._max_radius = None  # used for the actual visualizations
         if radius == 0 and telescope is not None and band is not None:
-            assert f"{telescope}_{band}" in TB, "band not known, please set the radius"
+            assert (
+                f"{telescope}_{band}" in TB
+            ), "band not known, please set the radius"
             disc_diameter = D[telescope]
             self._max_radius = freq_to_angle(
                 TB[f"{telescope}_{band}"][1], disc_diameter
@@ -98,13 +100,13 @@ class Targets:
     def table(self, new_table):
         self._table = new_table
 
-    def query(self, calculate_separations=True, *args, **kwargs):
+    def query(self, query_mode="one", calculate_separations=True, *args, **kwargs):
         """
         set calculate_separations to False to only query, without updating the
         self.separation variable
         """
         self.table, self._query_job, self._query = circles(
-            self.centers, self.radius / 60, *args, **kwargs
+            self.centers, self.radius / 60, *args, **kwargs,
         )  # degrees
         if calculate_separations:
             self.separation, self.center = self._calculate_separations()
@@ -114,7 +116,9 @@ class Targets:
     def skycoord(self):
         if self.table is None:
             return None
-        return SkyCoord(ra=self.table["ra"], dec=self.table["dec"], frame="icrs")
+        return SkyCoord(
+            ra=self.table["ra"], dec=self.table["dec"], frame="icrs"
+        )
 
     def _calculate_separations(self):
         assert self.table is not None, "run self.query() first"
@@ -137,7 +141,9 @@ class Targets:
         **kwargs,
     ):  # passed to bar plot
 
-        assert self.separation is not None, "run self._calculate_separations() first"
+        assert (
+            self.separation is not None
+        ), "run self._calculate_separations() first"
         lo, hi = np.inf, -np.inf  # not highlighting anything
         if telescope is None:
             telescope = self.telescope
@@ -160,7 +166,9 @@ class Targets:
         for i in range(1, len(counts)):
             counts[i] += counts[i - 1]
             bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
-        colors = ["crimson" if lo <= c.value <= hi else "#007847" for c in bin_centers]
+        colors = [
+            "crimson" if lo <= c.value <= hi else "#007847" for c in bin_centers
+        ]
 
         plt.figure(figsize=(8, 5))
         plt.bar(
@@ -259,7 +267,9 @@ class Targets:
             ), "if floating point, `bins` must be of the form 1/n"
             q = int(1 / bins)
             bins = np.quantile(dists, np.linspace(0, 1, q + 1))
-        ax.hist(dists, bins=bins, density=True, histtype=histtype, *args, **kwargs)
+        ax.hist(
+            dists, bins=bins, density=True, histtype=histtype, *args, **kwargs
+        )
         if markers:
             ax.plot(dists, 0 * dists, "|", color="k", markersize=10)
         ax.set_xlabel("distance (pc)")
@@ -269,7 +279,8 @@ class Targets:
     @property
     def gaia_dist(self):
         err = (
-            self.table["distance_gspphot_upper"] - self.table["distance_gspphot_lower"]
+            self.table["distance_gspphot_upper"]
+            - self.table["distance_gspphot_lower"]
         ) / 2
         return np.array(self.table["distance_gspphot"]), np.array(err)
 
@@ -295,7 +306,9 @@ class Targets:
 
     @property
     def M_naive(self):
-        return self.table["phot_g_mean_mag"] - 5 * np.log10(self.naive_dist[0]) + 5
+        return (
+            self.table["phot_g_mean_mag"] - 5 * np.log10(self.naive_dist[0]) + 5
+        )
 
     @property
     def M_naive_err(self):
@@ -304,11 +317,17 @@ class Targets:
 
     @property
     def M_bayes(self):
-        return self.table["phot_g_mean_mag"] - 5 * np.log10(self.posterior_dist[0]) + 5
+        return (
+            self.table["phot_g_mean_mag"]
+            - 5 * np.log10(self.posterior_dist[0])
+            + 5
+        )
 
     @property
     def M_bayes_err(self):
-        return (5 / (np.log(10) * self.posterior_dist[0])) * self.posterior_dist[1]
+        return (
+            5 / (np.log(10) * self.posterior_dist[0])
+        ) * self.posterior_dist[1]
 
     @property
     def M_gaia(self):
@@ -460,7 +479,9 @@ class Targets:
             n = naive + bayes
             fig2, axs2 = plt.subplots(1, n, figsize=(7 * n, 6))
         if heatmap:
-            fig2, axs2 = self._hr_heatmap(naive, bayes, fig2, axs2, mask_parallax, cmap)
+            fig2, axs2 = self._hr_heatmap(
+                naive, bayes, fig2, axs2, mask_parallax, cmap
+            )
         if gaia:
             if fig3 is None or ax3 is None:
                 fig3, ax3 = plt.subplots(1, 1, figsize=(7, 6))
