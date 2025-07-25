@@ -100,13 +100,18 @@ class Targets:
     def table(self, new_table):
         self._table = new_table
 
-    def query(self, query_mode="one", calculate_separations=True, *args, **kwargs):
+    def query(
+        self, query_mode="one", calculate_separations=True, *args, **kwargs
+    ):
         """
         set calculate_separations to False to only query, without updating the
         self.separation variable
         """
         self.table, self._query_job, self._query = circles(
-            self.centers, self.radius / 60, *args, **kwargs,
+            self.centers,
+            self.radius / 60,
+            *args,
+            **kwargs,
         )  # degrees
         if calculate_separations:
             self.separation, self.center = self._calculate_separations()

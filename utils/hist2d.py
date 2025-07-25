@@ -192,3 +192,64 @@ def dr_width(signals, xscale="linear", yscale="linear", xlim=None, ylim=None):
     plt.xlim(dr_bins[0], dr_bins[-1])
     plt.ylim(width_bins[0], width_bins[-1])
     plt.tight_layout()
+
+def plot_detection_rate(signals, x_idx, y_idx, n_x=50, n_y=50, xscale="linear", yscale="linear",
+                        xlim=None, ylim=None, xlabel="", ylabel="", title="", cmap="viridis"):
+    x = signals[:, x_idx]
+    y = signals[:, y_idx]
+    detected = signals[:, 4]
+
+    # Define bins
+    if xscale == "log":
+        x_bins = np.logspace(*np.log10(xlim if xlim else (x.min(), x.max())), n_x)
+    else:
+        x_bins = np.linspace(*(xlim if xlim else (x.min(), x.max())), n_x)
+
+    if yscale == "log":
+        y_bins = np.logspace(*np.log10(ylim if ylim else (y.min(), y.max())), n_y)
+    else:
+        y_bins = np.linspace(*(ylim if ylim else (y.min(), y.max())), n_y)
+
+    # Compute detection rate
+    det_sum, _, _ = np.histogram2d(x, y, bins=[x_bins, y_bins], weights=detected)
+    det_count, _, _ = np.histogram2d(x, y, bins=[x_bins, y_bins])
+    with np.errstate(divide="ignore", invalid="ignore"):
+        detection_rate = det_sum / det_count
+
+    # Plot
+    plt.figure(figsize=(10, 6))
+    X, Y = np.meshgrid(x_bins, y_bins)
+    pcm = plt.pcolormesh(X, Y, detection_rate.T, cmap=cmap, shading="auto")
+    plt.xscale(xscale)
+    plt.yscale(yscale)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.colorbar(pcm, label="Detection Rate")
+    plt.xlim(x_bins[0], x_bins[-1])
+    plt.ylim(y_bins[0], y_bins[-1])
+    plt.tight_layout()
+
+def snr_width(signals, swap_axes=False, xlim=None, ylim=None, n_x=50, n_y=50, cmap="YlOrRd"):
+    x_idx, y_idx = 2, 3
+    xscale, yscale = "log", "linear"
+    xlabel, ylabel = "SNR", "width"
+    if swap_axes:
+        x_idx, y_idx = y_idx, x_idx
+        xscale, yscale = yscale, xscale
+        xlabel, ylabel = ylabel, xlabel
+    plot_detection_rate(
+        signals,
+        x_idx=x_idx,
+        y_idx=y_idx,
+        n_x=n_x,
+        n_y=n_y,
+        xscale=xscale,
+        yscale=yscale,
+        xlim=xlim,
+        ylim=ylim,
+        xlabel=xlabel,
+        ylabel=ylabel,
+        cmap=cmap,
+        title="Detection Rate as Function of snr and width"
+    )

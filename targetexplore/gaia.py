@@ -3,6 +3,7 @@ import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.time import Time
 
+
 def _make_query(where_clause, quality_cut, force_quality_cut):
     if quality_cut is False and not force_quality_cut:
         quality_cut = "1=1"
@@ -26,7 +27,10 @@ FROM gaiadr3.gaia_source WHERE """
     query_str = f"{query_head} ({where_clause})"
     return query_str, quality_cut
 
-def query(query: str, quality_cut=True, force_quality_cut=False, *args, **kwargs):
+
+def query(
+    query: str, quality_cut=True, force_quality_cut=False, *args, **kwargs
+):
     """
     Queries the gaia catalog, essentially just launches the job, catches the
     results and returns them
@@ -116,7 +120,13 @@ def _circles(
         ]
     )
 
-    return query(*_make_query(where_clause, quality_cut, force_quality_cut), force_quality_cut, *args, **kwargs)
+    return query(
+        *_make_query(where_clause, quality_cut, force_quality_cut),
+        force_quality_cut,
+        *args,
+        **kwargs,
+    )
+
 
 def _timed_circles(
     list_coords: list[SkyCoord],
@@ -138,11 +148,21 @@ def _timed_circles(
         negative = " or ".join([positive, negative])
         positive = f"contains(point('ICRS', ra, dec), circle('ICRL', {ra}, {dec}, {r})) = 1"
         where_clause = f"{positive} and not ({negative})"
-        res_targets.append(query(*_make_query(where_clause, quality_cut, force_quality_cut), force_quality_cut, *args, **kwargs))
+        res_targets.append(
+            query(
+                *_make_query(where_clause, quality_cut, force_quality_cut),
+                force_quality_cut,
+                *args,
+                **kwargs,
+            )
+        )
 
     return res_targets
 
+
 def circles(*args, **kwargs):
     return _circles(*args, **kwargs)
-    if mode=="one":   return _circles(*args, **kwargs)
-    if mode=="timed": return _timed_circles(*args, **kwargs)
+    if mode == "one":
+        return _circles(*args, **kwargs)
+    if mode == "timed":
+        return _timed_circles(*args, **kwargs)

@@ -45,6 +45,7 @@ def make_and_save(
     signal_info_dir: str = "",
     output_dir: str = "",
     time_it: bool = False,
+    **kwargs,
 ) -> str:
     """
     Create a synthetic data frame with injected signals and save it to an HDF5
@@ -78,12 +79,9 @@ def make_and_save(
     str
         The name of the saved file.
     """
-    if signal_per_file == 1:
-        filename = "_".join(f"{arg.value:.4g}" for arg in args) + ".h5"
-    else:
-        filename = str(hash(str(args))) + ".h5"
-        with open(signal_info_dir + filename + ".npy", "wb") as f:
-            np.save(f, args)
+    filename = str(hash(str(args))) + ".h5"
+    with open(signal_info_dir + filename + ".npy", "wb") as f:
+        np.save(f, args)
 
     print(f"{filename} running on process {multiprocessing.current_process().name}")
 
@@ -98,6 +96,7 @@ def make_and_save(
         dt=dt,
         fch1=hi,
         dtype=np.float32,
+        **kwargs
     )
 
     if time_it:
@@ -135,6 +134,7 @@ def make_and_save(
         print(f"{pc() - step:.3f} s")
         print(f"\nTOTAL : {pc() - start:.3f} s")
 
+    print(f"{frame.get_metadata() = }")
     return filename
 
 
@@ -156,6 +156,7 @@ def _make_and_save_random(
     width: Optional[Union[u.Quantity, Sequence[u.Quantity]]] = WIDTH,
     evenly_spaced: bool = False,
     adjust_snr: bool = False,
+    n_samples=2**22,
     **kwargs,
 ) -> None:
     """
@@ -209,6 +210,7 @@ def _make_and_save_random(
         dr = dr[0] + rng.random(signal_per_file) * (dr[1] - dr[0])
     else:
         dr = dr * np.ones(signal_per_file)
+    dr = dr * np.random.choice([1, -1], size=dr.shape)
 
     if isinstance(snr, Sequence):
         assert len(snr) == 2, "Only accepted [min, max] as astropy quantities"
@@ -230,7 +232,6 @@ def _make_and_save_random(
         snr /= np.sqrt(width.to(u.Hz).value)
 
     df = 1 * u.Hz
-    n_samples = 2**22
     n_ints = 16
     obstime = 300 * u.s
     dt = obstime / n_ints
